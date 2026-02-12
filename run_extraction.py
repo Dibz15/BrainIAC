@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--temp_img", type=str, required=True, help="Path to the atlas template image.")
     parser.add_argument("--input_dir", type=str, required=True, help="Path to the input images directory.")
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save the processed images.")
-    parser.add_argument('--checkpoint', type=str, default=None,
+    parser.add_argument('--checkpoint', type=str, default='./checkpoints/BrainIAC.ckpt',
                       help='Path to the ViT BrainIAC model checkpoint (default: checkpoints/BrainIAC.ckpt)')
     parser.add_argument('--input_csv', type=str, default=None, 
                         help='Path to a CSV which contains data about the input volumes.')
@@ -38,14 +38,8 @@ if __name__ == "__main__":
     --temp_img ./preprocessing/atlases/temp_head.nii.gz \
     --input_dir ./data/sample/unprocessed \
     --output_dir ./data/sample/processed
-
     """
 
-    if args.input_csv is not None:
-        gt_df = pd.read_csv(args.input_csv)
-        gt_df['file'] = extract_filenames(gt_df[args.input_path_col])
-    else:
-        gt_df = None
 
     # records DF contains input_path, output_path, id, and status.
 
@@ -58,7 +52,6 @@ if __name__ == "__main__":
 
     # Filter out paths that failed
     failed_df = records_df.query('status == "ok"').copy()
-    records_df = records_df.query('status == "ok"')
 
     print(f'{len(failed_df)} volumes failed preprocessing pipeline and were removed from final inference.')
 
@@ -78,25 +71,11 @@ if __name__ == "__main__":
 
     """
 
-    if gt_df is not None:
-        # Merge source information into our new dataframe with processed vol paths
-        gt_df = gt_df.merge(
-            records_df[['input_path', 'input_file', 'id']],
-            left_on='input_file',
-            right_on='file',
-            how='inner'
-        )
-    else:
-        gt_df = records_df.copy()
-
     # Create a dummy column to satisfy extraction
-    gt_df['label'] = 0
+    records_df['label'] = 0
 
     # Extraction wants 'pat_id'
-    gt_df = gt_df.rename({'id': 'pat_id'}, axis=1)
-
-    combined_csv_path = Path(args.output_csv).parent / 'tmp_combined.csv'
-    gt_df.to_csv(combined_csv_path, index=False)
+    records_df = records_df.rename({'id': 'pat_id'}, axis=1)
 
     """
     !python get_brainiac_features.py \
@@ -113,10 +92,32 @@ if __name__ == "__main__":
     #                                 args.batch_size, 
     #                                 args.num_workers)
     
-    brainiac.extract_features.main(combined_csv_path, 
+    brainiac.extract_features.main(records_path, 
                                     args.output_csv, # Final output file path
                                     args.output_dir, # This is the dir with the preprocessed volumes from above
                                     args.checkpoint, # Model checkpoint file
                                     args.batch_size, 
                                     args.num_workers
                                 )
+    
+    if args.input_csv is not None:
+        gt_df = pd.read_csv(args.input_csv)
+        gt_df['file'] = extract_filenames(gt_df[args.input_path_col])
+
+        # filter to just successful volumes
+        records_df = records_df.query('status == "ok"')
+
+        # Merge source information into our new dataframe with processed vol paths
+        gt_df = gt_df.merge(
+            records_df[['input_path', 'input_file', 'id']],
+            left_on='input_file',
+            right_on='file',
+            how='inner'
+        )
+
+        # TODO once we see the output format
+        # pred_df = pd.read_csv(args.output_csv)
+
+
+        # combined_csv_path = Path(args.output_csv).parent / 'tmp_combined.csv'
+        # gt_df.to_csv(combined_csv_path, index=False)
