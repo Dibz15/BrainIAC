@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-import src as brainiac
-
+from .preprocessing import mri_preprocess_3d_simple as simple_preproc
+from . import get_brainiac_features as extract_features
 
 def extract_filenames(df_col):
     """Replace a column of file paths with just the base file names."""
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     # records DF contains input_path, output_path, id, and status.
 
-    records_df, records_path = brainiac.simple_preproc.main(temp_img=args.temp_img, 
+    records_df, records_path = simple_preproc.main(temp_img=args.temp_img, 
                                                             input_dir=args.input_dir, 
                                                             output_dir=args.output_dir) 
     
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     #                                 args.batch_size, 
     #                                 args.num_workers)
     
-    brainiac.extract_features.main(records_path, 
+    extract_features.main(records_path, 
                                     args.output_csv, # Final output file path
                                     args.output_dir, # This is the dir with the preprocessed volumes from above
                                     args.checkpoint, # Model checkpoint file

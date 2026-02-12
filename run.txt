@@ -1,16 +1,5 @@
 
 
-docker run --rm \ 
-    -v $(pwd):/src/
-    -v ../data/<dataset>/:/in/ \
-    -v ../data/<dataset>/T1w_preprocessed:/out_data/ 
-    python run_extraction.py \
-        --temp_img /src/src/preprocessing/atlases/temp_head.nii.gz \
-        --input_dir /in/T1w/ \
-        --output_dir /out_data/ \
-        --input_csv /in/analyses/<csv_file> \
-        --input_path_col "<col>" \
-        --output_csv /in/analyses/predicted.csv
 
 # ADHD TEST
 docker run --rm -v $(pwd):/src/ -v "$(pwd)/../data/TEST:/in" -v "$(pwd)/../data/TEST/T1w_preprocessed:/out_data" -w /src/ brainiac python run_extraction.py --temp_img /src/src/preprocessing/atlases/temp_head.nii.gz --input_dir /in/T1w/ --output_dir /out_data/ --input_csv /in/analyses/adhd_filtered_qc.csv --input_path_col "T1w_filenames" --output_csv /in/analyses/adhd_predicted.csv
