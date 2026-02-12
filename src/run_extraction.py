@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from .preprocessing import mri_preprocess_3d_simple as simple_preproc
-from . import get_brainiac_features as extract_features
+import preprocessing.mri_preprocess_3d_simple as simple_preproc
+import get_brainiac_features as extract_features
 
 def extract_filenames(df_col):
     """Replace a column of file paths with just the base file names."""
