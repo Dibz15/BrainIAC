@@ -1,2 +1,2 @@
-import preprocessing.mri_preprocess_3d_simple as simple_preproc
-import get_brainiac_features as extract_features
+from .preprocessing import mri_preprocess_3d_simple as simple_preproc
+from . import get_brainiac_features as extract_features
