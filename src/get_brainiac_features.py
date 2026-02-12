@@ -59,8 +59,37 @@ def infer(model, test_loader):
 # Main inference pipeline
 #=========================
 
-def main():
-    # argparse
+def main(input_csv, output_csv, root_dir, 
+        checkpoint, batch_size=1, num_workers=1):
+    
+    # Setup dataset with validation transforms (no augmentation for feature extraction)
+    test_dataset = BrainAgeDataset(
+        csv_path=input_csv,
+        root_dir=root_dir,
+        transform=get_validation_transform()
+    )
+    
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+    # Load ViT BrainIAC - device placement is handled in load_brainiac
+    model = load_brainiac(checkpoint, device)
+    
+    # Extract features
+    features_df = infer(model, test_loader)
+    
+    # Save features
+    features_df.to_csv(output_csv, index=False)
+    print(f"ViT BrainIAC features saved to {args.output_csv}")
+    print(f"Feature shape: {features_df.shape}")
+    print(f"Number of feature dimensions: {features_df.shape[1] - 1}")  # -1 for label column
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract ViT BrainIAC features from images')
     parser.add_argument('--checkpoint', type=str, default=None,
                       help='Path to the ViT BrainIAC model checkpoint (default: checkpoints/BrainIAC.ckpt)')
@@ -76,32 +105,9 @@ def main():
                       help='Number of workers for data loading (default: 1)')
     args = parser.parse_args()
 
-    # Setup dataset with validation transforms (no augmentation for feature extraction)
-    test_dataset = BrainAgeDataset(
-        csv_path=args.input_csv,
-        root_dir=args.root_dir,
-        transform=get_validation_transform()
-    )
-    
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True
-    )
-
-    # Load ViT BrainIAC - device placement is handled in load_brainiac
-    model = load_brainiac(args.checkpoint, device)
-    
-    # Extract features
-    features_df = infer(model, test_loader)
-    
-    # Save features
-    features_df.to_csv(args.output_csv, index=False)
-    print(f"ViT BrainIAC features saved to {args.output_csv}")
-    print(f"Feature shape: {features_df.shape}")
-    print(f"Number of feature dimensions: {features_df.shape[1] - 1}")  # -1 for label column
-
-if __name__ == "__main__":
-    main()
+    main(args.input_csv, 
+         args.output_csv, 
+         args.root_dir, 
+         args.checkpoint, 
+         args.batch_size, 
+         args.num_workers)

@@ -7,6 +7,7 @@ import random
 from HD_BET.hd_bet import hd_bet
 import argparse
 import torch
+import pandas as pd
 
 def brain_extraction(input_dir, output_dir, device):
     """
@@ -41,6 +42,9 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
     
     # Read the template image
     fixed_img = sitk.ReadImage(temp_img, sitk.sitkFloat32)
+
+    # data about filenames and status
+    records = []
     
     # Track problematic files
     IDs = []
@@ -51,19 +55,34 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
             moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
         except Exception as e:
             IDs.append(ID)
+            records.append({
+                "input_path": img_dir,
+                "output_path": None,
+                "id": ID,
+                "status": f"load_failed: {str(e)}"
+            })
             print(f"Error loading {ID}: {e}")
+
     
     count = 0
     print("Registering images...")
     list_of_files = sorted(glob.glob(input_dir + '/*.nii.gz'))
     
     for img_dir in tqdm(list_of_files):
-        ID = img_dir.split('/')[-1].split('.')[0]
+        # ID = img_dir.split('/')[-1].split('.')[0]
+        ID = os.path.basename(img_dir).replace(".nii.gz", "")
+
         if ID in IDs:
             print(f'Skipping problematic file: {ID}')
             continue
         
         if "_mask" in ID:
+            records.append({
+                "input_path": img_dir,
+                "output_path": None,
+                "id": ID,
+                "status": "skipped_mask"
+            })
             continue
             
         print(f"Processing image {count + 1}: {ID}")
@@ -143,16 +162,35 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
             sitk.WriteImage(moving_img_resampled, output_filename)
             print(f"Saved registered image to: {output_filename}")
             count += 1
+            records.append({
+                "input_path": img_dir,
+                "output_path": output_filename,
+                "id": ID,
+                "status": "ok"
+            })
 
         except Exception as e:
+            records.append({
+                "input_path": img_dir,
+                "output_path": None,
+                "id": ID,
+                "status": f"registration_failed: {str(e)}"
+            })
             print(f"Error processing {ID}: {e}")
             continue
 
     print(f"Successfully registered {count} images.")
     # Debug information
     print(f"Contents of output directory {output_dir}:")
+    
     print(os.listdir(output_dir))
-    return count > 0
+
+    csv_path = os.path.join(output_dir, "file_mapping.csv")
+    records_df = pd.DataFrame(records)
+    records_df.to_csv(csv_path, index=False)
+    print(f"Saved registration mapping to: {csv_path}")
+
+    return count > 0, records_df, csv_path
 
 def main(temp_img, input_dir, output_dir):
     """
@@ -176,7 +214,7 @@ def main(temp_img, input_dir, output_dir):
     
     # REgistration
     print("\nStep 1: Image Registration")
-    success = registration(
+    success, records_df, records_path = registration(
         input_dir=input_dir,
         output_dir=temp_reg_dir,
         temp_img=temp_img
@@ -203,7 +241,9 @@ def main(temp_img, input_dir, output_dir):
     
     print("\nPreprocessing complete! Final results saved in:", output_dir)
     print("Final preprocessed files:")
-    print(os.listdir(output_dir))
+    # print(os.listdir(output_dir))
+
+    return records_df, records_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process brain MRI registration and skull stripping.")
