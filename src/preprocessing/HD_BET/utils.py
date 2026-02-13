@@ -4,12 +4,10 @@ from torch import nn
 import numpy as np
 from skimage.morphology import label
 import os
-from HD_BET.paths import folder_with_parameter_files
-
+from .paths import folder_with_parameter_files
 
 def get_params_fname(fold):
     return os.path.join(folder_with_parameter_files, "%d.model" % fold)
-
 
 def maybe_download_parameters(fold=0, force_overwrite=False):
     """

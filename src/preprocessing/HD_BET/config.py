@@ -1,9 +1,8 @@
 import numpy as np
 import torch
-from HD_BET.utils import SetNetworkToVal, softmax_helper
+from .utils import SetNetworkToVal, softmax_helper
 from abc import abstractmethod
-from HD_BET.network_architecture import Network
-
+from .network_architecture import Network
 
 class BaseConfig(object):
     def __init__(self):
