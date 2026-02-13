@@ -2,10 +2,10 @@
 
 import os
 import sys
-sys.path.append("/mnt/93E8-0534/AIDAN/HDBET/")
-from HD_BET.run import run_hd_bet
-from HD_BET.utils import maybe_mkdir_p, subfiles
-import HD_BET
+# sys.path.append("/mnt/93E8-0534/AIDAN/HDBET/")
+from .run import run_hd_bet
+from .utils import maybe_mkdir_p, subfiles
+# import HD_BET
 
 def hd_bet(input_file_or_dir,output_file_or_dir,mode,device,tta,pp=1,save_mask=0,overwrite_existing=1):
 
@@ -14,8 +14,9 @@ def hd_bet(input_file_or_dir,output_file_or_dir,mode,device,tta,pp=1,save_mask=0
                                           os.path.basename(input_file_or_dir).split(".")[0] + "_bet")
 
     
-    params_file = os.path.join(HD_BET.__path__[0], "model_final.py")
-    config_file = os.path.join(HD_BET.__path__[0], "config.py")
+    # params_file = os.path.join(HD_BET.__path__[0], "model_final.py")
+    # config_file = os.path.join(HD_BET.__path__[0], "config.py")
+    config_file = None
 
     assert os.path.abspath(input_file_or_dir) != os.path.abspath(output_file_or_dir), "output must be different from input"
 

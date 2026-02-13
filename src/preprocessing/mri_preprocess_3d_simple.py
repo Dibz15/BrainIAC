@@ -4,7 +4,7 @@ import glob
 import SimpleITK as sitk
 from tqdm import tqdm
 import random
-from HD_BET.hd_bet import hd_bet
+from .HD_BET.hd_bet import hd_bet
 import argparse
 import torch
 import pandas as pd
