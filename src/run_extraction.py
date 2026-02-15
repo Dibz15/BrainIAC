@@ -128,7 +128,10 @@ if __name__ == "__main__":
     records_df['label'] = 0
 
     # Extraction wants 'pat_id'
-    records_df = records_df.rename({'id': 'pat_id'}, axis=1)
+    records_df['pat_id'] = records_df['id']
+
+    features_in_path = Path(args.output_dir) / 'features_input.csv'
+    records_df.to_csv(features_in_path, index=False)
 
     """
     !python get_brainiac_features.py \
@@ -145,7 +148,7 @@ if __name__ == "__main__":
     #                                 args.batch_size, 
     #                                 args.num_workers)
     
-    extract_features.main(records_path, 
+    extract_features.main(features_in_path, 
                                     args.output_csv, # Final output file path
                                     args.output_dir, # This is the dir with the preprocessed volumes from above
                                     args.checkpoint, # Model checkpoint file
