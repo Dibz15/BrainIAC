@@ -50,7 +50,8 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
     IDs = []
     print("Preloading step...")
     for img_dir in tqdm(sorted(glob.glob(input_dir + '/*.nii.gz'))):
-        ID = img_dir.split('/')[-1].split('.')[0]
+        # ID = img_dir.split('/')[-1].split('.')[0]
+        ID = os.path.basename(img_dir).replace(".nii.gz", "")
         try:
             moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
         except Exception as e:
@@ -59,6 +60,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
                 "input_path": img_dir,
                 "output_path": None,
                 "id": ID,
+                "pat_id": f"{ID}_0000",
                 "status": f"load_failed: {str(e)}"
             })
             print(f"Error loading {ID}: {e}")
@@ -81,6 +83,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
                 "input_path": img_dir,
                 "output_path": None,
                 "id": ID,
+                "pat_id": f"{ID}_0000",
                 "status": "skipped_mask"
             })
             continue
@@ -166,6 +169,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
                 "input_path": img_dir,
                 "output_path": output_filename,
                 "id": ID,
+                "pat_id": f"{ID}_0000",
                 "status": "ok"
             })
 
@@ -174,6 +178,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
                 "input_path": img_dir,
                 "output_path": None,
                 "id": ID,
+                "pat_id": f"{ID}_0000",
                 "status": f"registration_failed: {str(e)}"
             })
             print(f"Error processing {ID}: {e}")

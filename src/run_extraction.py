@@ -128,7 +128,7 @@ if __name__ == "__main__":
     records_df['label'] = 0
 
     # Extraction wants 'pat_id'
-    records_df['pat_id'] = records_df['id']
+    # records_df['pat_id'] = records_df['id']
 
     features_in_path = Path(args.output_dir) / 'features_input.csv'
     records_df.to_csv(features_in_path, index=False)
