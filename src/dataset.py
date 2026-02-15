@@ -62,7 +62,12 @@ class BrainAgeDataset(Dataset):
         img_path = os.path.join(self.root_dir,  pat_id  + ".nii.gz")
         sample = {"image": img_path}
         sample = self.transform(sample)
-        return {"image": sample["image"], "label": torch.tensor(label, dtype=torch.float32)}
+        return {
+            "image": sample["image"], 
+            "label": torch.tensor(label, dtype=torch.float32),
+            "pat_id": pat_id,
+            "img_path": img_path
+            }
 
 
 class MCIStrokeDataset(Dataset):

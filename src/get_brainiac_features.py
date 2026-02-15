@@ -26,8 +26,37 @@ if torch.cuda.is_available():
 # Inference function
 #=========================
 
+# def infer(model, test_loader):
+#     features_df = None  # Placeholder for feature DataFrame
+#     model.eval()
+    
+#     with torch.no_grad():
+#         for sample in tqdm(test_loader, desc="Extracting ViT features", unit="batch"):
+#             inputs = sample['image'].to(device)
+#             class_labels = sample['label'].float().to(device)
+
+#             # Get features from the ViT backbone model
+#             features = model(inputs)
+#             features_numpy = features.cpu().numpy()
+
+#             # Expand features into separate columns
+#             feature_columns = [f'Feature_{i}' for i in range(features_numpy.shape[1])]
+#             batch_features = pd.DataFrame(
+#                 features_numpy,
+#                 columns=feature_columns
+#             )
+#             batch_features['GroundTruthClassLabel'] = class_labels.cpu().numpy().flatten()
+
+#             # Append batch features to features_df
+#             if features_df is None:
+#                 features_df = batch_features
+#             else:
+#                 features_df = pd.concat([features_df, batch_features], ignore_index=True)
+    
+#     return features_df
+
 def infer(model, test_loader):
-    features_df = None  # Placeholder for feature DataFrame
+    features_df = None
     model.eval()
     
     with torch.no_grad():
@@ -35,19 +64,23 @@ def infer(model, test_loader):
             inputs = sample['image'].to(device)
             class_labels = sample['label'].float().to(device)
 
-            # Get features from the ViT backbone model
+            pat_ids = sample['pat_id']          # usually already list/str
+            img_paths = sample['img_path']      # usually already list/str
+
             features = model(inputs)
             features_numpy = features.cpu().numpy()
 
-            # Expand features into separate columns
             feature_columns = [f'Feature_{i}' for i in range(features_numpy.shape[1])]
-            batch_features = pd.DataFrame(
-                features_numpy,
-                columns=feature_columns
-            )
-            batch_features['GroundTruthClassLabel'] = class_labels.cpu().numpy().flatten()
+            batch_features = pd.DataFrame(features_numpy, columns=feature_columns)
 
-            # Append batch features to features_df
+            batch_features['GroundTruthClassLabel'] = class_labels.cpu().numpy().flatten()
+            batch_features['pat_id'] = (
+                pat_ids.cpu().numpy() if torch.is_tensor(pat_ids) else pat_ids
+            )
+            batch_features['img_path'] = (
+                img_paths.cpu().numpy() if torch.is_tensor(img_paths) else img_paths
+            )
+
             if features_df is None:
                 features_df = batch_features
             else:

@@ -148,8 +148,9 @@ if __name__ == "__main__":
     #                                 args.batch_size, 
     #                                 args.num_workers)
     
+    features_out_path = Path(args.output_dir) / 'pred_features.csv'
     extract_features.main(features_in_path, 
-                                    args.output_csv, # Final output file path
+                                    features_out_path, # Final output file path
                                     args.output_dir, # This is the dir with the preprocessed volumes from above
                                     args.checkpoint, # Model checkpoint file
                                     args.batch_size, 
