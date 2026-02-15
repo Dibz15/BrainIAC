@@ -158,6 +158,7 @@ if __name__ == "__main__":
                                 )
     
     if args.input_csv is not None:
+        print('Attempting to combine predictions with GT input CSV.')
         gt_df = pd.read_csv(args.input_csv)
         gt_df['file'] = extract_filenames(gt_df[args.input_path_col])
 
@@ -184,3 +185,6 @@ if __name__ == "__main__":
 
         # combined_csv_path = Path(args.output_csv).parent / 'tmp_combined.csv'
         combined_df.to_csv(args.output_csv, index=False)
+
+        print('Final output csv')
+        print(combined_df.head())
