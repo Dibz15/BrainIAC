@@ -12,6 +12,54 @@ def extract_filenames(df_col):
     df_col = df_col.copy()
     return df_col.apply(os.path.basename).apply(str.strip)
 
+
+def load_or_run_simple_preproc(*, args, required_cols=None) -> tuple[pd.DataFrame, str]:
+    """
+    Cache behavior:
+      - If output_dir/file_mapping.csv exists and loads, return it as records_df (skip pipeline).
+      - Otherwise run simple_preproc.main(...) and return its outputs.
+
+    required_cols: optional iterable of columns that must exist in the cached CSV,
+                   otherwise treat cache as invalid and rerun.
+    """
+    output_dir = Path(args.output_dir)
+    records_path = output_dir / "file_mapping.csv"
+
+    # Optional: allow explicit bypass
+    force = bool(getattr(args, "force_preproc", False) or getattr(args, "force", False))
+
+    if not force and records_path.exists():
+        try:
+            df = pd.read_csv(records_path)
+
+            # Basic sanity checks (tweak as you like)
+            if df.empty:
+                raise ValueError("cached file_mapping.csv is empty")
+
+            if required_cols:
+                missing = [c for c in required_cols if c not in df.columns]
+                if missing:
+                    raise ValueError(f"cached file_mapping.csv missing columns: {missing}")
+
+            return df, records_path
+
+        except Exception as e:
+            # Cache is present but unusable, fall through to rerun.
+            # You may want to log this.
+            print(f"[preproc] Cache invalid at {records_path}: {e}. Re-running preprocessing...")
+
+    # Run pipeline
+    records_df, produced_path = simple_preproc.main(
+        temp_img=args.temp_img,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+    )
+
+    # If the pipeline returns a different path, keep yours consistent with what you expect.
+    # (Or assert they match if you want.)
+    return records_df, Path(produced_path)
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Process brain MRI registration and skull stripping.")
@@ -30,6 +78,7 @@ if __name__ == "__main__":
                       help='Batch size for inference (default: 1)')
     parser.add_argument('--num_workers', type=int, default=1,
                       help='Number of workers for data loading (default: 1)')
+    parser.add_argument('--force_preproc', action='save_true', type=bool, help='Force preprocessing to re-run.')
     args = parser.parse_args()
 
 
@@ -40,12 +89,16 @@ if __name__ == "__main__":
     --output_dir ./data/sample/processed
     """
 
-
     # records DF contains input_path, output_path, id, and status.
 
-    records_df, records_path = simple_preproc.main(temp_img=args.temp_img, 
-                                                            input_dir=args.input_dir, 
-                                                            output_dir=args.output_dir) 
+    # records_df, records_path = simple_preproc.main(temp_img=args.temp_img, 
+    #                                                         input_dir=args.input_dir, 
+    #                                                         output_dir=args.output_dir) 
+    # If the mapping csv already exists, preprocessing is cached and we should reload it instead of rerunning
+    records_df, records_path = load_or_run_simple_preproc(args, 
+                                                          required_cols=['input_path',
+                                                                         'output_path',
+                                                                         'id','status'])
     
     records_df['input_file'] = extract_filenames(records_df['input_path'])
     records_df['output_file'] = extract_filenames(records_df['output_path'])
