@@ -244,7 +244,7 @@ def main(temp_img, input_dir, output_dir):
     print("Final preprocessed files:")
     # print(os.listdir(output_dir))
 
-    return records_df, records_path
+    return records_df, csv_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process brain MRI registration and skull stripping.")
