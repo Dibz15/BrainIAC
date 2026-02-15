@@ -185,12 +185,9 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
     
     print(os.listdir(output_dir))
 
-    csv_path = os.path.join(output_dir, "file_mapping.csv")
     records_df = pd.DataFrame(records)
-    records_df.to_csv(csv_path, index=False)
-    print(f"Saved registration mapping to: {csv_path}")
 
-    return count > 0, records_df, csv_path
+    return count > 0, records_df
 
 def main(temp_img, input_dir, output_dir):
     """
@@ -214,7 +211,7 @@ def main(temp_img, input_dir, output_dir):
     
     # REgistration
     print("\nStep 1: Image Registration")
-    success, records_df, records_path = registration(
+    success, records_df = registration(
         input_dir=input_dir,
         output_dir=temp_reg_dir,
         temp_img=temp_img
@@ -223,6 +220,10 @@ def main(temp_img, input_dir, output_dir):
     if not success:
         print("Registration failed! No images were processed successfully.")
         return
+    
+    csv_path = os.path.join(output_dir, "file_mapping.csv")
+    records_df.to_csv(csv_path, index=False)
+    print(f"Saved registration mapping to: {csv_path}")
     
     print("\nChecking temporary directory contents:")
     print(os.listdir(temp_reg_dir))
