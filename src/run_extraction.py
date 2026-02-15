@@ -78,7 +78,7 @@ if __name__ == "__main__":
                       help='Batch size for inference (default: 1)')
     parser.add_argument('--num_workers', type=int, default=1,
                       help='Number of workers for data loading (default: 1)')
-    parser.add_argument('--force_preproc', action='store_true', type=bool, help='Force preprocessing to re-run.')
+    parser.add_argument('--force_preproc', action='store_true', help='Force preprocessing to re-run.')
     args = parser.parse_args()
 
 
