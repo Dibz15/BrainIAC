@@ -166,8 +166,8 @@ if __name__ == "__main__":
         # Merge source information into our new dataframe with processed vol paths
         gt_df = gt_df.merge(
             records_df[['input_path', 'input_file', 'id']],
-            left_on='input_file',
-            right_on='file',
+            left_on='file',
+            right_on='input_file',
             how='inner'
         )
 
