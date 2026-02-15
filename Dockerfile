@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /workspace
 
 # Create an unprivileged user (the base image is often root by default)
-RUN useradd -m -u 1000 appuser
+# RUN useradd -m -u 1000 appuser
 
 # Copy only requirements first to maximize layer caching
 COPY requirements.txt /workspace/requirements.txt
@@ -22,12 +22,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install -r /workspace/requirements.txt
 
 # Copy the rest of the project
-COPY . /workspace
+# COPY . /workspace
 
 # Make workspace owned by the non-root user
-RUN chown -R appuser:appuser /workspace
+# RUN chown -R appuser:appuser /workspace
 
-USER appuser
+# USER appuser
 
 # Default command is intentionally minimal; override in docker run / compose
 CMD ["python", "-c", "import torch; print('torch', torch.__version__)"]
