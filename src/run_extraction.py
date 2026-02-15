@@ -95,7 +95,7 @@ if __name__ == "__main__":
     #                                                         input_dir=args.input_dir, 
     #                                                         output_dir=args.output_dir) 
     # If the mapping csv already exists, preprocessing is cached and we should reload it instead of rerunning
-    records_df, records_path = load_or_run_simple_preproc(args, 
+    records_df, records_path = load_or_run_simple_preproc(args=args, 
                                                           required_cols=['input_path',
                                                                          'output_path',
                                                                          'id','status'])
