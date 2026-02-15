@@ -60,7 +60,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
                 "input_path": img_dir,
                 "output_path": None,
                 "id": ID,
-                "pat_id": f"{ID}_0000",
+                "pat_id": f"{ID}_0000", # needed for extraction code
                 "status": f"load_failed: {str(e)}"
             })
             print(f"Error loading {ID}: {e}")

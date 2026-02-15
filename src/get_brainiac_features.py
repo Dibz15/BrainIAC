@@ -85,7 +85,7 @@ def main(input_csv, output_csv, root_dir,
     
     # Save features
     features_df.to_csv(output_csv, index=False)
-    print(f"ViT BrainIAC features saved to {args.output_csv}")
+    print(f"ViT BrainIAC features saved to {output_csv}")
     print(f"Feature shape: {features_df.shape}")
     print(f"Number of feature dimensions: {features_df.shape[1] - 1}")  # -1 for label column
 
