@@ -166,15 +166,21 @@ if __name__ == "__main__":
 
         # Merge source information into our new dataframe with processed vol paths
         gt_df = gt_df.merge(
-            records_df[['input_path', 'input_file', 'id']],
+            records_df[['input_path', 'input_file', 'pat_id']],
             left_on='file',
             right_on='input_file',
             how='inner'
         )
 
-        # TODO once we see the output format
-        # pred_df = pd.read_csv(args.output_csv)
+        # Load inference data (features, paths)
+        pred_df = pd.read_csv(features_out_path)
 
+        # Merge inference data into our source ground-truth DF.
+        combined_df = pred_df.merge(
+            gt_df,
+            on = 'pat_id',
+            how='inner'
+        )
 
         # combined_csv_path = Path(args.output_csv).parent / 'tmp_combined.csv'
-        # gt_df.to_csv(combined_csv_path, index=False)
+        combined_df.to_csv(args.output_csv, index=False)
