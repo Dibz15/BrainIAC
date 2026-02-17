@@ -11,7 +11,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from dataset import BrainAgeDataset, get_validation_transform
 from load_brainiac import load_brainiac
-from .preprocessing.timer import Timer
+from preprocessing.timer import Timer
 
 # fix random seed 
 seed = 42

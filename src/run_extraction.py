@@ -54,7 +54,8 @@ def load_or_run_simple_preproc(*, args, required_cols=None, timer_obj:timer.Time
         temp_img=args.temp_img,
         input_dir=args.input_dir,
         output_dir=args.output_dir,
-        timer_obj=timer_obj
+        timer_obj=timer_obj,
+        overwrite=args.force_preproc
     )
 
     # If the pipeline returns a different path, keep yours consistent with what you expect.

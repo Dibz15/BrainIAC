@@ -13,7 +13,8 @@ import pandas as pd
 
 from .timer import Timer
 
-def brain_extraction(input_dir, output_dir, device, timer_obj:Timer = None):
+def brain_extraction(input_dir, output_dir, device, 
+                     overwrite=True, timer_obj:Timer = None):
     """
     Brain extraction using HDBET package (UNet based DL method)
     Args:
@@ -28,13 +29,19 @@ def brain_extraction(input_dir, output_dir, device, timer_obj:Timer = None):
     
     # Run HD-BET directly with the output directory
     with (timer_obj.track("extraction") if timer_obj else nullcontext()):
-        hd_bet(input_dir, output_dir, device=device, mode='fast', tta=0)
+        hd_bet(input_dir, output_dir, 
+               device=device, mode='fast', 
+               tta=0, 
+               overwrite_existing=1 if overwrite else 0,
+               save_mask=0
+            )
     
     print('Brain extraction complete!')
     print("\nContents of output directory after brain extraction:")
     print(os.listdir(output_dir))
 
-def registration(input_dir, output_dir, temp_img, interp_type='linear', timer_obj:Timer = None):
+def registration(input_dir, output_dir, temp_img, 
+                 interp_type='linear', overwrite:bool=False, timer_obj:Timer = None):
     """
     MRI registration with SimpleITK
     Args:
@@ -72,7 +79,6 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear', timer_ob
                     "status": f"load_failed: {str(e)}"
                 })
                 print(f"Error loading {ID}: {e}")
-
     
     count = 0
     print("Registering images...")
@@ -100,6 +106,21 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear', timer_ob
                 continue
                 
             print(f"Processing image {count + 1}: {ID}")
+
+            output_filename = os.path.join(output_dir, f"{ID}_0000.nii.gz")
+
+            # NEW: skip if already registered
+            if (not overwrite) and os.path.exists(output_filename):
+                print(f"Skipping already registered file: {ID}")
+                records.append({
+                    "input_path": img_dir,
+                    "output_path": output_filename,
+                    "id": ID,
+                    "pat_id": f"{ID}_0000",
+                    "status": "ok"
+                })
+                count += 1   # optional, depends if you want these counted as success
+                continue
             
             try:
                 # Read and preprocess moving image
@@ -205,7 +226,8 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear', timer_ob
 
     return count > 0, records_df
 
-def main(temp_img, input_dir, output_dir, timer_obj:Timer = None):
+def main(temp_img, input_dir, output_dir, 
+         overwrite:bool=True, timer_obj:Timer = None):
     """
     Main function to process brain MRI images
     Args:
@@ -232,16 +254,13 @@ def main(temp_img, input_dir, output_dir, timer_obj:Timer = None):
         input_dir=input_dir,
         output_dir=temp_reg_dir,
         temp_img=temp_img,
+        overwrite=overwrite,
         timer_obj=timer_obj
     )
     
     if not success:
         print("Registration failed! No images were processed successfully.")
         return
-    
-    csv_path = os.path.join(output_dir, "file_mapping.csv")
-    records_df.to_csv(csv_path, index=False)
-    print(f"Saved registration mapping to: {csv_path}")
     
     print("\nChecking temporary directory contents:")
     print(os.listdir(temp_reg_dir))
@@ -252,7 +271,8 @@ def main(temp_img, input_dir, output_dir, timer_obj:Timer = None):
         input_dir=temp_reg_dir,
         output_dir=output_dir,
         device=device,
-        timer_obj=timer_obj
+        overwrite=overwrite,
+        timer_obj=timer_obj,
     )
     
     # Clean up temporary directory
@@ -262,6 +282,10 @@ def main(temp_img, input_dir, output_dir, timer_obj:Timer = None):
     print("\nPreprocessing complete! Final results saved in:", output_dir)
     print("Final preprocessed files:")
     # print(os.listdir(output_dir))
+
+    csv_path = os.path.join(output_dir, "file_mapping.csv")
+    records_df.to_csv(csv_path, index=False)
+    print(f"Saved registration mapping to: {csv_path}")
 
     return records_df, csv_path
 

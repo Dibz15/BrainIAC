@@ -77,7 +77,17 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
 
     for in_fname, out_fname in zip(mri_fnames, output_fnames):
         mask_fname = out_fname[:-7] + "_mask.nii.gz"
-        if overwrite or (not (os.path.isfile(mask_fname) and keep_mask) or not os.path.isfile(out_fname)):
+        # Run the operation unless overwrite is off AND 
+        # both the output and the mask already exist AND 
+        # we actually want to keep the mask.
+        #if overwrite or (not (os.path.isfile(mask_fname) and keep_mask) or not os.path.isfile(out_fname)):
+        
+        
+        # Less strict. If the output exists, then we skip.
+        if overwrite or (
+            not os.path.isfile(out_fname)
+            or (keep_mask and not os.path.isfile(mask_fname))
+        ):
             print("File:", in_fname)
             print("preprocessing...")
             try:
@@ -114,5 +124,6 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
 
             if not keep_mask:
                 os.remove(mask_fname)
-
+        else:
+            print(f'Output already exists: {out_fname}. Skipping.')
 
