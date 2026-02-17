@@ -1,6 +1,8 @@
 import sys
 import os
 import glob
+from contextlib import nullcontext
+
 import SimpleITK as sitk
 from tqdm import tqdm
 import random
@@ -9,7 +11,9 @@ import argparse
 import torch
 import pandas as pd
 
-def brain_extraction(input_dir, output_dir, device):
+from .timer import Timer
+
+def brain_extraction(input_dir, output_dir, device, timer_obj:Timer = None):
     """
     Brain extraction using HDBET package (UNet based DL method)
     Args:
@@ -23,13 +27,14 @@ def brain_extraction(input_dir, output_dir, device):
     print(f"Output directory: {output_dir}")
     
     # Run HD-BET directly with the output directory
-    hd_bet(input_dir, output_dir, device=device, mode='fast', tta=0)
+    with (timer_obj.track("extraction") if timer_obj else nullcontext()):
+        hd_bet(input_dir, output_dir, device=device, mode='fast', tta=0)
     
     print('Brain extraction complete!')
     print("\nContents of output directory after brain extraction:")
     print(os.listdir(output_dir))
 
-def registration(input_dir, output_dir, temp_img, interp_type='linear'):
+def registration(input_dir, output_dir, temp_img, interp_type='linear', timer_obj:Timer = None):
     """
     MRI registration with SimpleITK
     Args:
@@ -49,21 +54,24 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
     # Track problematic files
     IDs = []
     print("Preloading step...")
+
     for img_dir in tqdm(sorted(glob.glob(input_dir + '/*.nii.gz'))):
         # ID = img_dir.split('/')[-1].split('.')[0]
-        ID = os.path.basename(img_dir).replace(".nii.gz", "")
-        try:
-            moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
-        except Exception as e:
-            IDs.append(ID)
-            records.append({
-                "input_path": img_dir,
-                "output_path": None,
-                "id": ID,
-                "pat_id": f"{ID}_0000", # needed for extraction code
-                "status": f"load_failed: {str(e)}"
-            })
-            print(f"Error loading {ID}: {e}")
+
+        with (timer_obj.track("preload") if timer_obj else nullcontext()):
+            ID = os.path.basename(img_dir).replace(".nii.gz", "")
+            try:
+                moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
+            except Exception as e:
+                IDs.append(ID)
+                records.append({
+                    "input_path": img_dir,
+                    "output_path": None,
+                    "id": ID,
+                    "pat_id": f"{ID}_0000", # needed for extraction code
+                    "status": f"load_failed: {str(e)}"
+                })
+                print(f"Error loading {ID}: {e}")
 
     
     count = 0
@@ -71,118 +79,121 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
     list_of_files = sorted(glob.glob(input_dir + '/*.nii.gz'))
     
     for img_dir in tqdm(list_of_files):
-        # ID = img_dir.split('/')[-1].split('.')[0]
-        ID = os.path.basename(img_dir).replace(".nii.gz", "")
-
-        if ID in IDs:
-            print(f'Skipping problematic file: {ID}')
-            continue
         
-        if "_mask" in ID:
-            records.append({
-                "input_path": img_dir,
-                "output_path": None,
-                "id": ID,
-                "pat_id": f"{ID}_0000",
-                "status": "skipped_mask"
-            })
-            continue
-            
-        print(f"Processing image {count + 1}: {ID}")
+        with (timer_obj.track("register") if timer_obj else nullcontext()):
         
-        try:
-            # Read and preprocess moving image
-            moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
-            moving_img = sitk.N4BiasFieldCorrection(moving_img)
+            # ID = img_dir.split('/')[-1].split('.')[0]
+            ID = os.path.basename(img_dir).replace(".nii.gz", "")
 
-            # Resample fixed image to 1mm isotropic
-            old_size = fixed_img.GetSize()
-            old_spacing = fixed_img.GetSpacing()
-            new_spacing = (1, 1, 1)
-            new_size = [
-                int(round((old_size[0] * old_spacing[0]) / float(new_spacing[0]))),
-                int(round((old_size[1] * old_spacing[1]) / float(new_spacing[1]))),
-                int(round((old_size[2] * old_spacing[2]) / float(new_spacing[2])))
-            ]
-
-            # Set interpolation type
-            if interp_type == 'linear':
-                interp_type = sitk.sitkLinear
-            elif interp_type == 'bspline':
-                interp_type = sitk.sitkBSpline
-            elif interp_type == 'nearest_neighbor':
-                interp_type = sitk.sitkNearestNeighbor
-
-            # Resample fixed image
-            resample = sitk.ResampleImageFilter()
-            resample.SetOutputSpacing(new_spacing)
-            resample.SetSize(new_size)
-            resample.SetOutputOrigin(fixed_img.GetOrigin())
-            resample.SetOutputDirection(fixed_img.GetDirection())
-            resample.SetInterpolator(interp_type)
-            resample.SetDefaultPixelValue(fixed_img.GetPixelIDValue())
-            resample.SetOutputPixelType(sitk.sitkFloat32)
-            fixed_img = resample.Execute(fixed_img)
-
-            # Initialize transform
-            transform = sitk.CenteredTransformInitializer(
-                fixed_img, 
-                moving_img, 
-                sitk.Euler3DTransform(), 
-                sitk.CenteredTransformInitializerFilter.GEOMETRY)
-
-            # Set up registration method
-            registration_method = sitk.ImageRegistrationMethod()
-            registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
-            registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
-            registration_method.SetMetricSamplingPercentage(0.01)
-            registration_method.SetInterpolator(sitk.sitkLinear)
-            registration_method.SetOptimizerAsGradientDescent(
-                learningRate=1.0, 
-                numberOfIterations=100, 
-                convergenceMinimumValue=1e-6, 
-                convergenceWindowSize=10)
-            registration_method.SetOptimizerScalesFromPhysicalShift()
-            registration_method.SetShrinkFactorsPerLevel(shrinkFactors=[4, 2, 1])
-            registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2, 1, 0])
-            registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-            registration_method.SetInitialTransform(transform)
-
-            # Execute registration
-            final_transform = registration_method.Execute(fixed_img, moving_img)
-
-            # Apply transform and save registered image
-            moving_img_resampled = sitk.Resample(
-                moving_img, 
-                fixed_img, 
-                final_transform, 
-                sitk.sitkLinear, 
-                0.0, 
-                moving_img.GetPixelID())
+            if ID in IDs:
+                print(f'Skipping problematic file: {ID}')
+                continue
             
-            # Save with _0000 suffix as required by HD-BET
-            output_filename = os.path.join(output_dir, f"{ID}_0000.nii.gz")
-            sitk.WriteImage(moving_img_resampled, output_filename)
-            print(f"Saved registered image to: {output_filename}")
-            count += 1
-            records.append({
-                "input_path": img_dir,
-                "output_path": output_filename,
-                "id": ID,
-                "pat_id": f"{ID}_0000",
-                "status": "ok"
-            })
+            if "_mask" in ID:
+                records.append({
+                    "input_path": img_dir,
+                    "output_path": None,
+                    "id": ID,
+                    "pat_id": f"{ID}_0000",
+                    "status": "skipped_mask"
+                })
+                continue
+                
+            print(f"Processing image {count + 1}: {ID}")
+            
+            try:
+                # Read and preprocess moving image
+                moving_img = sitk.ReadImage(img_dir, sitk.sitkFloat32)
+                moving_img = sitk.N4BiasFieldCorrection(moving_img)
 
-        except Exception as e:
-            records.append({
-                "input_path": img_dir,
-                "output_path": None,
-                "id": ID,
-                "pat_id": f"{ID}_0000",
-                "status": f"registration_failed: {str(e)}"
-            })
-            print(f"Error processing {ID}: {e}")
-            continue
+                # Resample fixed image to 1mm isotropic
+                old_size = fixed_img.GetSize()
+                old_spacing = fixed_img.GetSpacing()
+                new_spacing = (1, 1, 1)
+                new_size = [
+                    int(round((old_size[0] * old_spacing[0]) / float(new_spacing[0]))),
+                    int(round((old_size[1] * old_spacing[1]) / float(new_spacing[1]))),
+                    int(round((old_size[2] * old_spacing[2]) / float(new_spacing[2])))
+                ]
+
+                # Set interpolation type
+                if interp_type == 'linear':
+                    interp_type = sitk.sitkLinear
+                elif interp_type == 'bspline':
+                    interp_type = sitk.sitkBSpline
+                elif interp_type == 'nearest_neighbor':
+                    interp_type = sitk.sitkNearestNeighbor
+
+                # Resample fixed image
+                resample = sitk.ResampleImageFilter()
+                resample.SetOutputSpacing(new_spacing)
+                resample.SetSize(new_size)
+                resample.SetOutputOrigin(fixed_img.GetOrigin())
+                resample.SetOutputDirection(fixed_img.GetDirection())
+                resample.SetInterpolator(interp_type)
+                resample.SetDefaultPixelValue(fixed_img.GetPixelIDValue())
+                resample.SetOutputPixelType(sitk.sitkFloat32)
+                fixed_img = resample.Execute(fixed_img)
+
+                # Initialize transform
+                transform = sitk.CenteredTransformInitializer(
+                    fixed_img, 
+                    moving_img, 
+                    sitk.Euler3DTransform(), 
+                    sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+                # Set up registration method
+                registration_method = sitk.ImageRegistrationMethod()
+                registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+                registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
+                registration_method.SetMetricSamplingPercentage(0.01)
+                registration_method.SetInterpolator(sitk.sitkLinear)
+                registration_method.SetOptimizerAsGradientDescent(
+                    learningRate=1.0, 
+                    numberOfIterations=100, 
+                    convergenceMinimumValue=1e-6, 
+                    convergenceWindowSize=10)
+                registration_method.SetOptimizerScalesFromPhysicalShift()
+                registration_method.SetShrinkFactorsPerLevel(shrinkFactors=[4, 2, 1])
+                registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2, 1, 0])
+                registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+                registration_method.SetInitialTransform(transform)
+
+                # Execute registration
+                final_transform = registration_method.Execute(fixed_img, moving_img)
+
+                # Apply transform and save registered image
+                moving_img_resampled = sitk.Resample(
+                    moving_img, 
+                    fixed_img, 
+                    final_transform, 
+                    sitk.sitkLinear, 
+                    0.0, 
+                    moving_img.GetPixelID())
+                
+                # Save with _0000 suffix as required by HD-BET
+                output_filename = os.path.join(output_dir, f"{ID}_0000.nii.gz")
+                sitk.WriteImage(moving_img_resampled, output_filename)
+                print(f"Saved registered image to: {output_filename}")
+                count += 1
+                records.append({
+                    "input_path": img_dir,
+                    "output_path": output_filename,
+                    "id": ID,
+                    "pat_id": f"{ID}_0000",
+                    "status": "ok"
+                })
+
+            except Exception as e:
+                records.append({
+                    "input_path": img_dir,
+                    "output_path": None,
+                    "id": ID,
+                    "pat_id": f"{ID}_0000",
+                    "status": f"registration_failed: {str(e)}"
+                })
+                print(f"Error processing {ID}: {e}")
+                continue
 
     print(f"Successfully registered {count} images.")
     # Debug information
@@ -194,7 +205,7 @@ def registration(input_dir, output_dir, temp_img, interp_type='linear'):
 
     return count > 0, records_df
 
-def main(temp_img, input_dir, output_dir):
+def main(temp_img, input_dir, output_dir, timer_obj:Timer = None):
     """
     Main function to process brain MRI images
     Args:
@@ -216,10 +227,12 @@ def main(temp_img, input_dir, output_dir):
     
     # REgistration
     print("\nStep 1: Image Registration")
+
     success, records_df = registration(
         input_dir=input_dir,
         output_dir=temp_reg_dir,
-        temp_img=temp_img
+        temp_img=temp_img,
+        timer_obj=timer_obj
     )
     
     if not success:
@@ -238,7 +251,8 @@ def main(temp_img, input_dir, output_dir):
     brain_extraction(
         input_dir=temp_reg_dir,
         output_dir=output_dir,
-        device=device
+        device=device,
+        timer_obj=timer_obj
     )
     
     # Clean up temporary directory

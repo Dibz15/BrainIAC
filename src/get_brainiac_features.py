@@ -5,10 +5,13 @@ import random
 import yaml
 import os
 import argparse
+from contextlib import nullcontext
+
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from dataset import BrainAgeDataset, get_validation_transform
 from load_brainiac import load_brainiac
+from .preprocessing.timer import Timer
 
 # fix random seed 
 seed = 42
@@ -55,37 +58,38 @@ if torch.cuda.is_available():
     
 #     return features_df
 
-def infer(model, test_loader):
+def infer(model, test_loader, timer_obj:Timer = None):
     features_df = None
     model.eval()
     
     with torch.no_grad():
         for sample in tqdm(test_loader, desc="Extracting ViT features", unit="batch"):
-            inputs = sample['image'].to(device)
-            class_labels = sample['label'].float().to(device)
+            with (timer_obj.track("inference") if timer_obj else nullcontext()):
+                inputs = sample['image'].to(device)
+                class_labels = sample['label'].float().to(device)
 
-            pat_ids = sample['pat_id']          # usually already list/str
-            img_paths = sample['img_path']      # usually already list/str
+                pat_ids = sample['pat_id']          # usually already list/str
+                img_paths = sample['img_path']      # usually already list/str
 
-            features = model(inputs)
-            features_numpy = features.cpu().numpy()
+                features = model(inputs)
+                features_numpy = features.cpu().numpy()
 
-            feature_columns = [f'Feature_{i}' for i in range(features_numpy.shape[1])]
-            batch_features = pd.DataFrame(features_numpy, columns=feature_columns)
+                feature_columns = [f'Feature_{i}' for i in range(features_numpy.shape[1])]
+                batch_features = pd.DataFrame(features_numpy, columns=feature_columns)
 
-            batch_features['GroundTruthClassLabel'] = class_labels.cpu().numpy().flatten()
-            batch_features['pat_id'] = (
-                pat_ids.cpu().numpy() if torch.is_tensor(pat_ids) else pat_ids
-            )
-            batch_features['img_path'] = (
-                img_paths.cpu().numpy() if torch.is_tensor(img_paths) else img_paths
-            )
+                batch_features['GroundTruthClassLabel'] = class_labels.cpu().numpy().flatten()
+                batch_features['pat_id'] = (
+                    pat_ids.cpu().numpy() if torch.is_tensor(pat_ids) else pat_ids
+                )
+                batch_features['img_path'] = (
+                    img_paths.cpu().numpy() if torch.is_tensor(img_paths) else img_paths
+                )
 
-            if features_df is None:
-                features_df = batch_features
-            else:
-                features_df = pd.concat([features_df, batch_features], ignore_index=True)
-    
+                if features_df is None:
+                    features_df = batch_features
+                else:
+                    features_df = pd.concat([features_df, batch_features], ignore_index=True)
+        
     return features_df
 
 #=========================
@@ -93,7 +97,7 @@ def infer(model, test_loader):
 #=========================
 
 def main(input_csv, output_csv, root_dir, 
-        checkpoint, batch_size=1, num_workers=1):
+        checkpoint, batch_size=1, num_workers=1, timer_obj:Timer = None):
     
     # Setup dataset with validation transforms (no augmentation for feature extraction)
     test_dataset = BrainAgeDataset(
@@ -114,7 +118,7 @@ def main(input_csv, output_csv, root_dir,
     model = load_brainiac(checkpoint, device)
     
     # Extract features
-    features_df = infer(model, test_loader)
+    features_df = infer(model, test_loader, timer_obj=timer_obj)
     
     # Save features
     features_df.to_csv(output_csv, index=False)

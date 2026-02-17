@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 import preprocessing.mri_preprocess_3d_simple as simple_preproc
+import preprocessing.timer as timer
 import get_brainiac_features as extract_features
 
 def extract_filenames(df_col):
@@ -13,7 +14,7 @@ def extract_filenames(df_col):
     return df_col.apply(os.path.basename).apply(str.strip)
 
 
-def load_or_run_simple_preproc(*, args, required_cols=None) -> tuple[pd.DataFrame, str]:
+def load_or_run_simple_preproc(*, args, required_cols=None, timer_obj:timer.Timer = None) -> tuple[pd.DataFrame, str]:
     """
     Cache behavior:
       - If output_dir/file_mapping.csv exists and loads, return it as records_df (skip pipeline).
@@ -53,6 +54,7 @@ def load_or_run_simple_preproc(*, args, required_cols=None) -> tuple[pd.DataFram
         temp_img=args.temp_img,
         input_dir=args.input_dir,
         output_dir=args.output_dir,
+        timer_obj=timer_obj
     )
 
     # If the pipeline returns a different path, keep yours consistent with what you expect.
@@ -89,6 +91,8 @@ if __name__ == "__main__":
     --output_dir ./data/sample/processed
     """
 
+    timer_obj = timer.Timer(max_samples=1000)
+
     # records DF contains input_path, output_path, id, and status.
 
     # records_df, records_path = simple_preproc.main(temp_img=args.temp_img, 
@@ -98,7 +102,8 @@ if __name__ == "__main__":
     records_df, records_path = load_or_run_simple_preproc(args=args, 
                                                           required_cols=['input_path',
                                                                          'output_path',
-                                                                         'id','status'])
+                                                                         'id','status'],
+                                                                         timer_obj=timer_obj)
     
     records_df['input_file'] = extract_filenames(records_df['input_path'])
     records_df['output_file'] = extract_filenames(records_df['output_path'])
@@ -154,7 +159,8 @@ if __name__ == "__main__":
                                     args.output_dir, # This is the dir with the preprocessed volumes from above
                                     args.checkpoint, # Model checkpoint file
                                     args.batch_size, 
-                                    args.num_workers
+                                    args.num_workers,
+                                    timer_obj=timer_obj
                                 )
     
     if args.input_csv is not None:
@@ -188,3 +194,5 @@ if __name__ == "__main__":
 
         print('Final output csv')
         print(combined_df.head())
+
+    print(timer_obj.stats())
