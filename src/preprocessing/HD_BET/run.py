@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 import SimpleITK as sitk
+
+from tqdm import tqdm
+
 from .data_loading import load_and_preprocess, save_segmentation_nifti
 from .predict_case import predict_case_3D_net
 # import imp
@@ -75,7 +78,7 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
     for p in list_of_param_files:
         params.append(torch.load(p, map_location=lambda storage, loc: storage))
 
-    for in_fname, out_fname in zip(mri_fnames, output_fnames):
+    for in_fname, out_fname in tqdm(zip(mri_fnames, output_fnames)):
         mask_fname = out_fname[:-7] + "_mask.nii.gz"
         # Run the operation unless overwrite is off AND 
         # both the output and the mask already exist AND 
@@ -88,8 +91,8 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
             not os.path.isfile(out_fname)
             or (keep_mask and not os.path.isfile(mask_fname))
         ):
-            print("File:", in_fname)
-            print("preprocessing...")
+            print("Processing File:", in_fname)
+            # print("preprocessing...")
             try:
                 data, data_dict = load_and_preprocess(in_fname)
             except RuntimeError:
@@ -101,7 +104,7 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
 
             softmax_preds = []
 
-            print("prediction (CNN id)...")
+            # print("prediction (CNN id)...")
             for i, p in enumerate(params):
                 print(i)
                 net.load_state_dict(p)
@@ -117,7 +120,7 @@ def run_hd_bet(mri_fnames, output_fnames, mode="accurate", config_file=None, dev
             if postprocess:
                 seg = postprocess_prediction(seg)
 
-            print("exporting segmentation...")
+            # print("exporting segmentation...")
             save_segmentation_nifti(seg, data_dict, mask_fname)
 
             apply_bet(in_fname, mask_fname, out_fname)
