@@ -36,6 +36,9 @@ def brain_extraction(input_dir, output_dir, device,
                save_mask=0
             )
     
+    if timer_obj is not None:
+        timer_obj.dump_json_default()
+
     print('Brain extraction complete!')
     print("\nContents of output directory after brain extraction:")
     print(os.listdir(output_dir))
@@ -80,6 +83,9 @@ def registration(input_dir, output_dir, temp_img,
                 })
                 print(f"Error loading {ID}: {e}")
     
+    if timer_obj is not None:
+        timer_obj.dump_json_default()
+
     count = 0
     print("Registering images...")
     list_of_files = sorted(glob.glob(input_dir + '/*.nii.gz'))
@@ -221,6 +227,9 @@ def registration(input_dir, output_dir, temp_img,
     print(f"Contents of output directory {output_dir}:")
     
     print(os.listdir(output_dir))
+
+    if timer_obj is not None:
+        timer_obj.dump_json_default()
 
     records_df = pd.DataFrame(records)
 

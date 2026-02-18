@@ -41,7 +41,11 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Deque, Dict, Optional
 import math
-
+import json
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Any, Union
+import pickle
 
 def _percentile(sorted_vals: list[float], p: float) -> float:
     """Nearest-rank percentile; p in [0, 100]."""
@@ -80,7 +84,7 @@ class Timer:
         If set, keep only the last N samples per name for distribution stats.
         Lifetime totals/counts are still tracked accurately.
     """
-    def __init__(self, *, max_samples: Optional[int] = None):
+    def __init__(self, *, max_samples: Optional[int] = None, dump_path:Path = None):
         self._max_samples = max_samples
         self._samples: Dict[str, Deque[float]] = defaultdict(
             lambda: deque(maxlen=max_samples) if max_samples else deque()
@@ -88,6 +92,7 @@ class Timer:
         self._lifetime_total = defaultdict(float)
         self._lifetime_count = defaultdict(int)
         self._lock = Lock()
+        self._dump_path = dump_path
 
     @contextmanager
     def track(self, name: str):
@@ -212,3 +217,191 @@ class Timer:
                 f"{s.window_count:7d} {fmt(s.window_mean):>10} {fmt(s.window_p95):>10} {fmt(s.window_max):>10}"
             )
         return "\n".join(lines)
+
+    def to_dict(
+        self,
+        *,
+        include_samples: bool = False,
+        include_empty: bool = False,
+        sort_by: str = "lifetime_total",
+        limit: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """
+        Return a JSON-serializable snapshot of the timer.
+
+        include_samples:
+            If True, include the raw rolling-window samples per name.
+        include_empty:
+            If False, exclude names with lifetime_count == 0 (usually none).
+        sort_by / limit:
+            Apply sorting/limiting consistent with report().
+        """
+        stats = self.stats()
+
+        key_map = {
+            "lifetime_total": lambda s: s.lifetime_total,
+            "lifetime_mean": lambda s: s.lifetime_mean,
+            "lifetime_count": lambda s: s.lifetime_count,
+            "window_total": lambda s: s.window_total,
+            "window_mean": lambda s: s.window_mean,
+            "window_p95": lambda s: s.window_p95,
+            "window_max": lambda s: s.window_max,
+        }
+        if sort_by not in key_map:
+            raise ValueError(f"sort_by must be one of {set(key_map)}")
+
+        items = list(stats.items())
+        if not include_empty:
+            items = [(n, s) for (n, s) in items if s.lifetime_count > 0]
+
+        items.sort(key=lambda kv: key_map[sort_by](kv[1]), reverse=True)
+        if limit is not None:
+            items = items[:limit]
+
+        def num(x: float) -> Optional[float]:
+            # JSON does not officially support NaN/Infinity.
+            # Convert them to None so dumps(..., allow_nan=False) works.
+            return None if (isinstance(x, float) and (math.isnan(x) or math.isinf(x))) else x
+
+        out_items: list[dict[str, Any]] = []
+        for name, s in items:
+            entry: dict[str, Any] = {
+                "name": name,
+                "lifetime": {
+                    "count": int(s.lifetime_count),
+                    "total_seconds": num(s.lifetime_total),
+                    "mean_seconds": num(s.lifetime_mean),
+                },
+                "window": {
+                    "count": int(s.window_count),
+                    "total_seconds": num(s.window_total),
+                    "mean_seconds": num(s.window_mean),
+                    "min_seconds": num(s.window_min),
+                    "max_seconds": num(s.window_max),
+                    "median_seconds": num(s.window_median),
+                    "p95_seconds": num(s.window_p95),
+                },
+            }
+
+            if include_samples:
+                with self._lock:
+                    entry["samples_seconds"] = list(self._samples.get(name, ()))
+
+            out_items.append(entry)
+
+        return {
+            "meta": {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "max_samples": self._max_samples,
+                "sort_by": sort_by,
+                "limit": limit,
+                "include_samples": include_samples,
+            },
+            "items": out_items,
+        }
+
+    def dumps_json(
+        self,
+        *,
+        include_samples: bool = False,
+        include_empty: bool = False,
+        sort_by: str = "lifetime_total",
+        limit: Optional[int] = None,
+        indent: Optional[int] = 2,
+    ) -> str:
+        """Return a JSON string snapshot."""
+        payload = self.to_dict(
+            include_samples=include_samples,
+            include_empty=include_empty,
+            sort_by=sort_by,
+            limit=limit,
+        )
+        return json.dumps(payload, indent=indent, allow_nan=False)
+
+    def dump_json(
+        self,
+        path: Union[str, "Path"],
+        *,
+        include_samples: bool = False,
+        include_empty: bool = False,
+        sort_by: str = "lifetime_total",
+        limit: Optional[int] = None,
+        indent: Optional[int] = 2,
+        encoding: str = "utf-8",
+    ) -> None:
+        """Write a JSON snapshot to `path`."""
+        if path is None:
+            raise ValueError("Invalid path: path is None")
+        
+        p = Path(path)
+        payload = self.to_dict(
+            include_samples=include_samples,
+            include_empty=include_empty,
+            sort_by=sort_by,
+            limit=limit,
+        )
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(payload, indent=indent, allow_nan=False), encoding=encoding)
+
+    def dump_json_default(
+        self,
+        *,
+        include_samples: bool = False,
+        include_empty: bool = False,
+        sort_by: str = "lifetime_total",
+        limit: Optional[int] = None,
+        indent: Optional[int] = 2,
+        encoding: str = "utf-8",
+    ) -> None:
+        """Write a JSON snapshot to `path`."""
+        self.dump_json(self._dump_path, 
+                       include_samples=include_samples,
+                       include_empty=include_empty,
+                       sort_by=sort_by,
+                       limit=limit,
+                       indent=indent,
+                       encoding=encoding
+                       )
+        return
+
+    # --- Pickle support -------------------------------------------------
+
+    def __getstate__(self):
+        """Prepare state for pickling (exclude the lock)."""
+        state = self.__dict__.copy()
+        state["_lock"] = None  # Locks are not picklable
+        return state
+
+    def __setstate__(self, state):
+        """Restore state after unpickling."""
+        self.__dict__.update(state)
+        self._lock = Lock()  # Recreate the lock
+
+
+    def dump_pickle(self, path: Union[str, "Path"]) -> None:
+        """Persist the Timer instance to a pickle file."""
+        if path is None:
+            raise ValueError("Invalid path: path is None")
+
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+        with self._lock:
+            with p.open("wb") as f:
+                pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+    @classmethod
+    def load_pickle(cls, path: Union[str, "Path"]) -> "Timer":
+        """Load a Timer instance from a pickle file."""
+        if path is None:
+            raise ValueError("Invalid path: path is None")
+
+        p = Path(path)
+        with p.open("rb") as f:
+            obj = pickle.load(f)
+
+        if not isinstance(obj, cls):
+            raise TypeError(f"Pickle at {path} is not a Timer instance")
+
+        return obj

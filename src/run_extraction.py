@@ -92,7 +92,12 @@ if __name__ == "__main__":
     --output_dir ./data/sample/processed
     """
 
-    timer_obj = timer.Timer(max_samples=1000)
+    timer_pickle_path = Path(args.output_dir) / 'timer.pkl'
+
+    if timer_pickle_path.exists() and not args.force_preproc:
+        timer_obj = timer.Timer.load_pickle(timer_pickle_path)
+    else:
+        timer_obj = timer.Timer(max_samples=1000, dump_path=Path(args.output_dir) / 'timer.json')
 
     # records DF contains input_path, output_path, id, and status.
 
@@ -106,6 +111,10 @@ if __name__ == "__main__":
                                                                          'id','status'],
                                                                          timer_obj=timer_obj)
     
+    # Save timer object state
+    timer_obj.dump_json_default()
+    timer_obj.dump_pickle(timer_pickle_path)
+
     records_df['input_file'] = extract_filenames(records_df['input_path'])
     records_df['output_file'] = extract_filenames(records_df['output_path'])
 
@@ -165,6 +174,9 @@ if __name__ == "__main__":
                                         args.num_workers,
                                         timer_obj=timer_obj
                                     )
+        
+        timer_obj.dump_pickle(timer_pickle_path)
+        timer_obj.dump_json_default()
     
     if args.input_csv is not None:
         print('Attempting to combine predictions with GT input CSV.')

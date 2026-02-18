@@ -119,6 +119,9 @@ def main(input_csv, output_csv, root_dir,
     
     # Extract features
     features_df = infer(model, test_loader, timer_obj=timer_obj)
+
+    if timer_obj is not None:
+        timer_obj.dump_json_default()
     
     # Save features
     features_df.to_csv(output_csv, index=False)
