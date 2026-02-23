@@ -113,7 +113,10 @@ if __name__ == "__main__":
     
     # Save timer object state
     timer_obj.dump_json_default()
-    timer_obj.dump_pickle(timer_pickle_path)
+    try:
+        timer_obj.dump_pickle(timer_pickle_path)
+    except Exception as e:
+        print(e)
 
     records_df['input_file'] = extract_filenames(records_df['input_path'])
     records_df['output_file'] = extract_filenames(records_df['output_path'])

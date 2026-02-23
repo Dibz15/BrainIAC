@@ -46,6 +46,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Union
 import pickle
+from functools import partial
 
 def _percentile(sorted_vals: list[float], p: float) -> float:
     """Nearest-rank percentile; p in [0, 100]."""
@@ -87,7 +88,7 @@ class Timer:
     def __init__(self, *, max_samples: Optional[int] = None, dump_path:Path = None):
         self._max_samples = max_samples
         self._samples: Dict[str, Deque[float]] = defaultdict(
-            lambda: deque(maxlen=max_samples) if max_samples else deque()
+            partial(deque, maxlen=max_samples) if max_samples else deque
         )
         self._lifetime_total = defaultdict(float)
         self._lifetime_count = defaultdict(int)
