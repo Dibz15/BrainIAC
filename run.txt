@@ -1,5 +1,58 @@
 
 
 
-# ADHD TEST
-docker run --rm -v $(pwd):/src/ -v "$(pwd)/../data/TEST:/in" -v "$(pwd)/../data/TEST/T1w_preprocessed:/out_data" -w /src/ brainiac python run_extraction.py --temp_img /src/src/preprocessing/atlases/temp_head.nii.gz --input_dir /in/T1w/ --output_dir /out_data/ --input_csv /in/analyses/adhd_filtered_qc.csv --input_path_col "T1w_filenames" --output_csv /in/analyses/adhd_predicted.csv
+# ADHD test run
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd)/src/:/src/ -v "$(pwd)/../data/TEST:/in:ro" -v "$(pwd)/../data/TEST/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/adhd_filtered_qc.csv --input_path_col "T1w_path" --output_csv /out/adhd_predicted.csv
+
+# ADHD (~~ DONE! ~~)
+docker run --rm --user "$(id -u):$(id -g)" -v $(pwd)/src/:/src/ -v "$(pwd)/../data/ADHD:/in:ro" -v "$(pwd)/../data/ADHD/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/adhd_filtered_qc.csv --input_path_col "T1w_path" --output_csv /out/adhd_predicted.csv
+
+======================================================================
+
+# ABIDE (~~ DONE! (alien) ~~)
+python3 copy_dataset.py \
+  --csv  ~/Documents/repos/data/ABIDE/analyses/abide_filtered_qc.csv \
+  --column T1w_path \
+  --source-dir ~/dagobah/testing/brainiac/data/ABIDE/T1w \
+  --dest-dir ~/Documents/repos/data/ABIDE/T1w \
+  --max-workers 4 \
+  --executor thread
+
+docker run --rm -v $(pwd)/src/:/src/ -v "$(pwd)/../data/ABIDE:/in:ro" -v "$(pwd)/../data/ABIDE/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/adhd_filtered_qc.csv --input_path_col "T1w_path" --output_csv /out/abide_predicted.csv
+
+======================================================================
+
+# Brats (~~ DONE! (alien) ~~)
+rsync -rPv --append-verify --info=progress2 --human-readable /analyse/Project0235/segmentator/data/BraTS_2023/imgs/anat/T1w_conform_stripped/ ./BRATS/T1w/
+
+docker run --rm -v $(pwd)/src/:/src/ -v "$(pwd)/../data/BRATS:/in:ro" -v "$(pwd)/../data/BRATS/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/tpl-MNI152-brain_t1.nii.gz --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/brats_filtered_qc.csv --input_path_col "path" --output_csv /out/brats_predicted.csv
+
+======================================================================
+
+# NIFD (~~ DONE! (dagobah) ~~)
+docker run --rm -v $(pwd)/src/:/src/ -v "$(pwd)/../data/NIFD:/in:ro" -v "$(pwd)/../data/NIFD/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/nifd_filtered_qc.csv --input_path_col "T1w_filenames" --output_csv /out/nifd_predicted.csv
+
+======================================================================
+
+# ADNI (~~ DONE! (dagobah) ~~)
+python3 copy_dataset.py \
+  --csv  ../data/ADNI/analyses/adni_filtered_qc.csv \
+  --column T1w_filenames \
+  --source-dir /analyse/Project0235/segmentator/data/ADNI_20240822/imgs/T1w_conform \
+  --dest-dir ../data/ADNI/T1w_sub \
+  --max-workers 4 \
+  --executor thread
+
+docker run --rm -v $(pwd)/src/:/src/ -v "$(pwd)/../data/ADNI:/in:ro" -v "$(pwd)/../data/ADNI/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w_sub/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/adni_filtered_qc.csv --input_path_col "T1w_filenames" --output_csv /out/adni_predicted.csv
+
+======================================================================
+
+# Artefacts(ABIDE) (~~ RUNNING! (dagobah) ~~)
+docker run --rm -v $(pwd)/src/:/src/ -v "$(pwd)/../data/Artefacts:/in:ro" -v "$(pwd)/../data/Artefacts/T1w_processed:/out/" -v $(pwd)/checkpoints/:/checkpoints/ -w /src/ brainiac python run_extraction.py --temp_img /src/preprocessing/atlases/icbm_avg_152_t1_tal_lin.nii --input_dir /in/T1w/ --output_dir /out/ --checkpoint /checkpoints/BrainIAC.ckpt --input_csv /in/analyses/results_testing.csv --input_path_col "artifact_path" --output_csv /out/artifacts_predicted.csv
+
+
+
+
+# Show model size
+
+docker run --rm -v $(pwd)/src/:/src/:ro -v $(pwd)/checkpoints/:/checkpoints/:ro -w /src/ brainiac python load_brainiac.py  --checkpoint /checkpoints/BrainIAC.ckpt --device cpu

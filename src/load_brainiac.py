@@ -33,3 +33,5 @@ if __name__ == "__main__":
     # Load model
     model = load_brainiac(args.checkpoint, args.device)
     print(f"ViT backbone model loaded successfully from {args.checkpoint}!")
+    num_params = len(torch.nn.utils.parameters_to_vector(model.parameters()))
+    print(f"Loaded model parameters size: {num_params}")
